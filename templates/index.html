@@ -152,7 +152,7 @@
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <button id="startCam">Start camera</button>
-    <button id="recordBtn" class="secondary" disabled>Record 6s clip &amp; analyze</button>
+    <button id="recordBtn" class="secondary" disabled>Record 15s clip &amp; analyze</button>
   </div>
   <div id="webcamStatus"></div>
 </div>
@@ -289,7 +289,7 @@ document.getElementById("recordBtn").addEventListener("click", () => {
   setTimeout(() => {
     mediaRecorder.stop();
     document.getElementById("recordBtn").disabled = false;
-  }, 6000);
+  }, 15000);
 });
 </script>
 </body>
