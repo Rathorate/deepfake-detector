@@ -152,7 +152,7 @@
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <button id="startCam">Start camera</button>
-    <button id="recordBtn" class="secondary" disabled>Record 15s clip &amp; analyze</button>
+    <button id="recordBtn" class="secondary" disabled>Record 6s clip &amp; analyze</button>
   </div>
   <div id="webcamStatus"></div>
 </div>
@@ -284,12 +284,12 @@ document.getElementById("recordBtn").addEventListener("click", () => {
     submitVideo(blob, "webcam_clip.webm", statusEl);
   };
   mediaRecorder.start();
-  statusEl.textContent = "Recording 15 seconds...";
+  statusEl.textContent = "Recording 6 seconds...";
   document.getElementById("recordBtn").disabled = true;
   setTimeout(() => {
     mediaRecorder.stop();
     document.getElementById("recordBtn").disabled = false;
-  }, 15000);
+  }, 6000);
 });
 </script>
 </body>
