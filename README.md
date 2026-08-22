@@ -43,26 +43,48 @@ pip install -r requirements.txt
 No model files need to be downloaded — the detector uses cascade
 classifiers that ship with `opencv-python`.
 
+### Known issue: opencv-python 5.0.0.93
+
+At the time of writing, `opencv-python==5.0.0.93` ships without a working
+`cv2.CascadeClassifier`, which this tool depends on. `requirements.txt` is
+pinned to `opencv-python==4.10.0.84`, a version confirmed to work. If you
+hit `AttributeError: module 'cv2' has no attribute 'CascadeClassifier'`,
+confirm your installed version and re-pin:
+
+```bash
+pip list | grep opencv
+pip uninstall opencv-python opencv-python-headless opencv-contrib-python -y
+pip install opencv-python==4.10.0.84
+python3 -c "import cv2; print(cv2.__version__); print(hasattr(cv2, 'CascadeClassifier'))"
+```
+
+The last line should print `True`.
+
 ## Usage
 
 Analyze a recorded video file:
 
 ```bash
-python detector.py --input path/to/call_recording.mp4 --report report.json
+python3 detector.py --input path/to/call_recording.mp4 --report report.json
 ```
 
 Analyze a live webcam feed (press `q` to stop and see the report):
 
 ```bash
-python detector.py --webcam
+python3 detector.py --webcam
 ```
 
 Optional flags:
 
 ```bash
-python detector.py --webcam --camera-index 1 --seconds 30 --report report.json
-python detector.py --input video.mp4 --show   # preview window while analyzing a file
+python3 detector.py --webcam --camera-index 1 --seconds 30 --report report.json
+python3 detector.py --input video.mp4 --show   # preview window while analyzing a file
 ```
+
+**Note on WSL:** WSL does not pass through webcam devices by default, so
+`--webcam` will fail with a "could not open webcam" error unless you've
+set up USB/camera passthrough (e.g. via `usbipd-win`). File-based
+analysis (`--input`) works normally on WSL with no extra setup.
 
 ## Output
 
@@ -72,18 +94,31 @@ plain-language flags explaining what was detected, e.g.:
 ```json
 {
   "suspicion_level": "medium",
-  "suspicion_points": 2,
+  "suspicion_points": 1,
+  "suspicion_points_max": 4,
   "flags": [
-    "Abnormally low blink rate detected (0.0/min) — ...",
     "Face-boundary blending looks unusually smooth/uniform ..."
   ]
 }
 ```
 
+### How to read the suspicion level
+
+Don't treat `suspicion_level` as a verdict — treat `suspicion_points` as
+the more informative number. In testing, a single flag firing (1/4),
+especially the boundary-blend signal on a compressed or screen-recorded
+video, is consistent with normal compression artifacts rather than
+manipulation — that signal is the most prone to false positives. Multiple
+flags firing together (2+/4), especially blink rate combined with either
+flicker or jitter, is a stronger signal worth taking seriously. Always
+weigh this against the disclaimer below.
+
 ## Suggested next steps for a real security initiative
 
 - Validate against labeled datasets and tune thresholds before any
-  operational use.
+  operational use. The boundary-blend threshold (`< 15` in
+  `summarize()`) is a good first candidate to loosen if you see it firing
+  on known-real, well-lit video.
 - Pair with (not replace by) an out-of-band verification process for
   high-risk actions requested over video call (wire transfers, credential
   resets, etc.) — see the accompanying threat model document.
