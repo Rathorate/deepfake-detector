@@ -81,10 +81,10 @@ def analyze_video_file(path):
             break
         detector.process_frame(frame)
         frame_idx += 1
-        # Safety cap: don't analyze more than ~2000 frames (roughly a
-        # couple of minutes at 15-30fps) to keep response times reasonable
-        # on a modest server.
-        if frame_idx >= 2000:
+        # Safety cap: keep response times reasonable on free-tier/shared
+        # hosting, where CPU is slow and the platform's own proxy may
+        # time out long-running requests before the app responds.
+        if frame_idx >= 300:
             break
 
     cap.release()

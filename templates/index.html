@@ -152,7 +152,7 @@
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <button id="startCam">Start camera</button>
-    <button id="recordBtn" class="secondary" disabled>Record 10s clip &amp; analyze</button>
+    <button id="recordBtn" class="secondary" disabled>Record 6s clip &amp; analyze</button>
   </div>
   <div id="webcamStatus"></div>
 </div>
@@ -210,14 +210,34 @@ function renderResult(summary) {
 }
 
 async function submitVideo(blob, filename, statusEl) {
-  statusEl.textContent = "Uploading and analyzing... this can take a little while for longer clips.";
+  statusEl.textContent = "Uploading and analyzing... this can take a little while, especially on a cold server.";
   document.getElementById("result").innerHTML = "";
   const formData = new FormData();
   formData.append("video", blob, filename);
   try {
     const res = await fetch("/analyze", { method: "POST", body: formData });
-    const data = await res.json();
+    const contentType = res.headers.get("content-type") || "";
     statusEl.textContent = "";
+
+    if (!contentType.includes("application/json")) {
+      // Server (or a proxy in front of it, e.g. a host's timeout page)
+      // returned something that isn't JSON -- show the real status and a
+      // snippet of the body instead of crashing on .json() parsing.
+      const text = await res.text();
+      renderResult({
+        error: `Server returned a non-JSON response (HTTP ${res.status}). ` +
+               `This usually means the request timed out on the host before ` +
+               `analysis finished, rather than an error in the app itself. ` +
+               `Raw response (truncated): ${text.slice(0, 300)}`
+      });
+      return;
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      renderResult({ error: data.error || `Request failed with HTTP ${res.status}.` });
+      return;
+    }
     renderResult(data);
   } catch (err) {
     statusEl.textContent = "";
@@ -264,12 +284,12 @@ document.getElementById("recordBtn").addEventListener("click", () => {
     submitVideo(blob, "webcam_clip.webm", statusEl);
   };
   mediaRecorder.start();
-  statusEl.textContent = "Recording 10 seconds...";
+  statusEl.textContent = "Recording 6 seconds...";
   document.getElementById("recordBtn").disabled = true;
   setTimeout(() => {
     mediaRecorder.stop();
     document.getElementById("recordBtn").disabled = false;
-  }, 10000);
+  }, 6000);
 });
 </script>
 </body>
