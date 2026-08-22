@@ -152,7 +152,7 @@
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <button id="startCam">Start camera</button>
-    <button id="recordBtn" class="secondary" disabled>Record 6s clip &amp; analyze</button>
+    <button id="recordBtn" class="secondary" disabled>Record 15s clip &amp; analyze</button>
   </div>
   <div id="webcamStatus"></div>
 </div>
@@ -209,9 +209,38 @@ function renderResult(summary) {
   `;
 }
 
+async function waitForServerAwake(statusEl, maxWaitMs = 90000) {
+  const start = Date.now();
+  let attempt = 0;
+  while (Date.now() - start < maxWaitMs) {
+    attempt += 1;
+    try {
+      const res = await fetch("/healthz", { cache: "no-store" });
+      if (res.ok) return true;
+    } catch (e) {
+      // server not responding yet -- keep trying
+    }
+    statusEl.textContent = attempt === 1
+      ? "Waking up the server (it sleeps after inactivity on the free tier)..."
+      : `Still waking up the server... (${Math.round((Date.now() - start) / 1000)}s)`;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
 async function submitVideo(blob, filename, statusEl) {
-  statusEl.textContent = "Uploading and analyzing... this can take a little while, especially on a cold server.";
   document.getElementById("result").innerHTML = "";
+
+  const awake = await waitForServerAwake(statusEl);
+  if (!awake) {
+    renderResult({
+      error: "Server did not wake up in time. This can happen on the free " +
+             "hosting tier after long idle periods -- please try again."
+    });
+    return;
+  }
+
+  statusEl.textContent = "Uploading and analyzing... this can take a little while, especially on a cold server.";
   const formData = new FormData();
   formData.append("video", blob, filename);
   try {
@@ -284,12 +313,12 @@ document.getElementById("recordBtn").addEventListener("click", () => {
     submitVideo(blob, "webcam_clip.webm", statusEl);
   };
   mediaRecorder.start();
-  statusEl.textContent = "Recording 6 seconds...";
+  statusEl.textContent = "Recording 15 seconds...";
   document.getElementById("recordBtn").disabled = true;
   setTimeout(() => {
     mediaRecorder.stop();
     document.getElementById("recordBtn").disabled = false;
-  }, 6000);
+  }, 15000);
 });
 </script>
 </body>

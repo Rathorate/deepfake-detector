@@ -84,7 +84,7 @@ def analyze_video_file(path):
         # Safety cap: keep response times reasonable on free-tier/shared
         # hosting, where CPU is slow and the platform's own proxy may
         # time out long-running requests before the app responds.
-        if frame_idx >= 300:
+        if frame_idx >= 500:
             break
 
     cap.release()
