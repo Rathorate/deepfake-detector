@@ -125,3 +125,13 @@ weigh this against the disclaimer below.
 - Evaluate commercial/vendor detection tools for production use; this
   prototype is best suited for internal awareness demos and as a starting
   point for a properly trained classifier.
+
+## Live deployment (private)
+
+App URL: https://deepfake-detector-a6w3.onrender.com
+
+Protected by HTTP Basic Auth. Credentials are managed as environment
+variables in the Render dashboard, not stored in this repo.
+
+Note: on Render's free tier, the app spins down after 15 minutes of
+inactivity and takes ~30-60s to wake up on the next request.
