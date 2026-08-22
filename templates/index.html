@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deepfake Artifact Detector</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #161923;
+    --border: #2a2f3d;
+    --text: #e8e9ed;
+    --muted: #9aa0ac;
+    --accent: #5b8cff;
+    --good: #3ecf8e;
+    --warn: #e8b339;
+    --bad: #f2545b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .disclaimer {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .tab-btn.active { color: var(--text); border-color: var(--accent); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    display: none;
+  }
+  .panel.active { display: block; }
+  input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    background: #0f1117;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: #2a2f3d; }
+  video { width: 100%; border-radius: 8px; margin-bottom: 12px; background: #000; }
+  .controls { display: flex; gap: 8px; margin-bottom: 8px; }
+  #status { margin-top: 14px; font-size: 0.85rem; color: var(--muted); }
+  .result { margin-top: 20px; }
+  .level {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .level-low { background: rgba(62,207,142,0.15); color: var(--good); }
+  .level-medium { background: rgba(232,179,57,0.15); color: var(--warn); }
+  .level-high { background: rgba(242,84,91,0.15); color: var(--bad); }
+  .flags { margin-top: 14px; }
+  .flag {
+    background: #0f1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .stats {
+    margin-top: 16px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+  }
+  .raw-json {
+    margin-top: 16px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    background: #0f1117;
+    border-radius: 6px;
+    padding: 10px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+  details summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Deepfake Artifact Detector</h1>
+<div class="subtitle">Heuristic prototype — internal security research tool</div>
+
+<div class="disclaimer">
+  This is a heuristic proof-of-concept, not a trained classifier. It can
+  produce false positives (poor lighting, compression, low-quality webcams)
+  and false negatives (high-quality modern deepfakes). Do not treat its
+  output as a verdict — use it as one signal among several, and always
+  verify high-risk requests through an independent channel.
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="upload">Upload Video</button>
+  <button class="tab-btn" data-tab="webcam">Live Webcam</button>
+</div>
+
+<div class="panel active" id="panel-upload">
+  <input type="file" id="fileInput" accept="video/*">
+  <button id="uploadBtn">Analyze video</button>
+  <div id="uploadStatus"></div>
+</div>
+
+<div class="panel" id="panel-webcam">
+  <video id="preview" autoplay muted playsinline></video>
+  <div class="controls">
+    <button id="startCam">Start camera</button>
+    <button id="recordBtn" class="secondary" disabled>Record 10s clip &amp; analyze</button>
+  </div>
+  <div id="webcamStatus"></div>
+</div>
+
+<div id="status"></div>
+<div class="result" id="result"></div>
+
+<script>
+const tabs = document.querySelectorAll(".tab-btn");
+const panels = { upload: document.getElementById("panel-upload"), webcam: document.getElementById("panel-webcam") };
+tabs.forEach(btn => {
+  btn.addEventListener("click", () => {
+    tabs.forEach(b => b.classList.remove("active"));
+    Object.values(panels).forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    panels[btn.dataset.tab].classList.add("active");
+  });
+});
+
+function levelClass(level) {
+  return "level level-" + (level || "low");
+}
+
+function renderResult(summary) {
+  const resultDiv = document.getElementById("result");
+  if (summary.error) {
+    resultDiv.innerHTML = `<div class="flag" style="border-color:var(--bad)">Error: ${summary.error}</div>`;
+    return;
+  }
+  let flagsHtml = "";
+  if (summary.flags && summary.flags.length) {
+    flagsHtml = summary.flags.map(f => `<div class="flag">${f}</div>`).join("");
+  } else {
+    flagsHtml = `<div class="flag">No artifact flags raised.</div>`;
+  }
+
+  resultDiv.innerHTML = `
+    <div>
+      <span class="${levelClass(summary.suspicion_level)}">${summary.suspicion_level} suspicion</span>
+      &nbsp; <span style="color:var(--muted); font-size:0.85rem;">${summary.suspicion_points}/${summary.suspicion_points_max} signals</span>
+    </div>
+    <div class="flags">${flagsHtml}</div>
+    <div class="stats">
+      <div>Frames analyzed: ${summary.frame_count}</div>
+      <div>Face coverage: ${summary.face_coverage_pct}%</div>
+      <div>Duration: ${summary.duration_sec}s</div>
+      <div>Blink rate: ${summary.blink_rate_per_min}/min</div>
+    </div>
+    <details>
+      <summary>Raw report JSON</summary>
+      <div class="raw-json">${JSON.stringify(summary, null, 2)}</div>
+    </details>
+    <div class="disclaimer" style="margin-top:16px;">${summary.disclaimer || ""}</div>
+  `;
+}
+
+async function submitVideo(blob, filename, statusEl) {
+  statusEl.textContent = "Uploading and analyzing... this can take a little while for longer clips.";
+  document.getElementById("result").innerHTML = "";
+  const formData = new FormData();
+  formData.append("video", blob, filename);
+  try {
+    const res = await fetch("/analyze", { method: "POST", body: formData });
+    const data = await res.json();
+    statusEl.textContent = "";
+    renderResult(data);
+  } catch (err) {
+    statusEl.textContent = "";
+    renderResult({ error: String(err) });
+  }
+}
+
+// -- Upload tab --
+document.getElementById("uploadBtn").addEventListener("click", () => {
+  const input = document.getElementById("fileInput");
+  const statusEl = document.getElementById("uploadStatus");
+  if (!input.files.length) {
+    statusEl.textContent = "Choose a video file first.";
+    return;
+  }
+  submitVideo(input.files[0], input.files[0].name, statusEl);
+});
+
+// -- Webcam tab --
+let mediaStream = null;
+let mediaRecorder = null;
+let chunks = [];
+
+document.getElementById("startCam").addEventListener("click", async () => {
+  const statusEl = document.getElementById("webcamStatus");
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    document.getElementById("preview").srcObject = mediaStream;
+    document.getElementById("recordBtn").disabled = false;
+    statusEl.textContent = "Camera ready.";
+  } catch (err) {
+    statusEl.textContent = "Could not access camera: " + err.message;
+  }
+});
+
+document.getElementById("recordBtn").addEventListener("click", () => {
+  if (!mediaStream) return;
+  const statusEl = document.getElementById("webcamStatus");
+  chunks = [];
+  mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
+  mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(chunks, { type: "video/webm" });
+    submitVideo(blob, "webcam_clip.webm", statusEl);
+  };
+  mediaRecorder.start();
+  statusEl.textContent = "Recording 10 seconds...";
+  document.getElementById("recordBtn").disabled = true;
+  setTimeout(() => {
+    mediaRecorder.stop();
+    document.getElementById("recordBtn").disabled = false;
+  }, 10000);
+});
+</script>
+</body>
+</html>
