@@ -284,7 +284,7 @@ document.getElementById("recordBtn").addEventListener("click", () => {
     submitVideo(blob, "webcam_clip.webm", statusEl);
   };
   mediaRecorder.start();
-  statusEl.textContent = "Recording 6 seconds...";
+  statusEl.textContent = "Recording 15 seconds...";
   document.getElementById("recordBtn").disabled = true;
   setTimeout(() => {
     mediaRecorder.stop();
